@@ -50,13 +50,8 @@ public class GenericDataSourceInfo extends JDBCDataSourceInfo {
             // Explicit user override from the driver's Advanced parameters UI
             supportsTransactionsForDDL = CommonUtils.toBoolean(ddlTxParam);
         } else {
-            // Auto-detect from JDBC DatabaseMetaData. Only the two strict "DDL can't
-            // live in a transaction" signals disable the feature. We deliberately do
-            // NOT treat dataDefinitionCausesTransactionCommit() as a disabler — Oracle
-            // and similar engines return true there but DDL still executes cleanly
-            // inside a transaction (it just commits on completion). Each probe is in
-            // its own try/catch because some drivers throw on one method while
-            // answering another correctly.
+            // Auto-detect from JDBC metadata. dataDefinitionCausesTransactionCommit
+            // is not a disabler (Oracle returns true but DDL still works in a tx).
             boolean ddlTxAllowed = true;
             try {
                 if (metaData.supportsDataManipulationTransactionsOnly()) ddlTxAllowed = false;
