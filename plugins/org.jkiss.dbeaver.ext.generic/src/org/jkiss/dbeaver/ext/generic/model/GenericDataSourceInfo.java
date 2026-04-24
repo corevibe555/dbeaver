@@ -45,7 +45,27 @@ public class GenericDataSourceInfo extends JDBCDataSourceInfo {
         setSupportsResultSetScroll(CommonUtils.getBoolean(driver.getDriverParameter(GenericConstants.PARAM_SUPPORTS_SCROLL), false));
         supportsMultipleResults = CommonUtils.getBoolean(driver.getDriverParameter(GenericConstants.PARAM_SUPPORTS_MULTIPLE_RESULTS), false);
         multipleResultsFailsOnMaxRows = CommonUtils.getBoolean(driver.getDriverParameter(GenericConstants.PARAM_MULTIPLE_RESULTS_FAILS_ON_MAX_ROWS), false);
-        supportsTransactionsForDDL = CommonUtils.getBoolean(driver.getDriverParameter(GenericConstants.PARAM_SUPPORTS_TRANSACTIONS_FOR_DDL), true);
+        final Object ddlTxParam = driver.getDriverParameter(GenericConstants.PARAM_SUPPORTS_TRANSACTIONS_FOR_DDL);
+        if (ddlTxParam != null) {
+            // Explicit user override from the driver's Advanced parameters UI
+            supportsTransactionsForDDL = CommonUtils.toBoolean(ddlTxParam);
+        } else {
+            // Auto-detect from JDBC DatabaseMetaData. Only the two strict "DDL can't
+            // live in a transaction" signals disable the feature. We deliberately do
+            // NOT treat dataDefinitionCausesTransactionCommit() as a disabler — Oracle
+            // and similar engines return true there but DDL still executes cleanly
+            // inside a transaction (it just commits on completion). Each probe is in
+            // its own try/catch because some drivers throw on one method while
+            // answering another correctly.
+            boolean ddlTxAllowed = true;
+            try {
+                if (metaData.supportsDataManipulationTransactionsOnly()) ddlTxAllowed = false;
+            } catch (Throwable ignored) { /* probe unsupported */ }
+            try {
+                if (ddlTxAllowed && metaData.dataDefinitionIgnoredInTransactions()) ddlTxAllowed = false;
+            } catch (Throwable ignored) { /* probe unsupported */ }
+            supportsTransactionsForDDL = ddlTxAllowed;
+        }
         setReadOnlyData(CommonUtils.getBoolean(driver.getDriverParameter(GenericConstants.PARAM_READ_ONLY_DATA), false));
         setReadOnlyMetaData(CommonUtils.getBoolean(driver.getDriverParameter(GenericConstants.PARAM_READ_ONLY_META_DATA), false));
         supportsCatalogSelection = CommonUtils.getBoolean(
